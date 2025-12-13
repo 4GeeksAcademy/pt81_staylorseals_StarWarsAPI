@@ -64,6 +64,28 @@ def handle_people():
     return jsonify(people_dictionaries), 200
 
 
+@app.route('/planets', methods=["GET", "POST"])
+def handle_planets():
+    if request.method == "POST":
+        name = request.json["name"]
+        description = request.json["description"]
+        new_planets = Planets(
+            name=name,
+            description=description
+        )
+
+        return jsonify(new_planets.serialize()), 201
+
+    planets = Planets.query.all()
+    planets_dictionaries = []
+    for planets in planets:
+        planets_dictionaries.append(
+            planets.serialize()
+        )
+
+    return jsonify(planets_dictionaries), 200
+
+
 @app.route('/people/<int:people_id>', methods=["GET"])
 def get_person(people_id):
     person = People.query.get(people_id)
@@ -72,6 +94,25 @@ def get_person(people_id):
             "msg": "Character not found"
         }), 404
     return jsonify(person.serialize()), 200
+
+
+@app.route('/planets/<int:planet_uid>', methods=["GET"])
+def get_planet(planet_uid):
+    planet = Planets.query.get(planet_uid)
+    if planet is None:
+        return jsonify({
+            "msg": "Planet not found"
+        }), 404
+    return jsonify(planet.serialize()), 200
+
+
+@app.route('/users/<int:user_id>/favorites', methods=["GET"])
+def get_user_favorites(user_id):
+    user = User.query.get(user_id)
+    return jsonify({
+        "people": [p.serialize() for p in user.favorites],
+        "planets": [pl.serialize() for pl in user.favoritesP]
+    }), 200
 
 
 @app.route('/favorite/people/<int:people_id>', methods=["POST"])
@@ -97,6 +138,29 @@ def add_favorite_person(people_id):
     return {"message": "Favorite added successfully"}
 
 
+@app.route('/favorite/planet/<int:planet_uid>', methods=["POST"])
+def add_favorite_planet(planet_uid):
+    user_id = request.json.get("user_id")
+
+    # 1. get the user
+    user = User.query.get(user_id)
+    if not user:
+        return {"error": "User not found"}, 404
+
+    # 2. get the person
+    planet = Planets.query.get(planet_uid)
+    if not planet:
+        return {"error": "Planet not found"}, 404
+
+    # 3. add person to user's favorites using relationship
+    user.favoritesP.append(planet)
+
+    # 4. commit
+    db.session.commit()
+
+    return {"message": "Favorite added successfully"}
+
+
 @app.route('/users', methods=["GET", "POST"])
 def handle_users():
     if request.method == "POST":
@@ -115,6 +179,27 @@ def handle_users():
         )
 
     return jsonify(users_dictionaries), 200
+
+
+@app.route('/favorite/people/<int:people_id>', methods=["DELETE"])
+def delete_favorite_person(people_id):
+    user_id = request.json.get("user_id")
+    user = User.query.get(user_id)
+    person = People.query.get(people_id)
+    user.favorites.remove(person)
+    db.session.commit()
+    return {"message": "Favorite removed successfully"}, 200
+
+
+@app.route('/favorite/planet/<int:planet_id>', methods=["DELETE"])
+def delete_favorite_planet(planet_id):
+    user_id = request.json.get("user_id")
+    user = User.query.get(user_id)
+    planet = Planets.query.get(planet_id)
+    user.favoritesP.remove(planet)
+    db.session.commit()
+    return {"message": "Favorite removed successfully"}, 200
+
 
     # this only runs if `$ python src/app.py` is executed
 if __name__ == '__main__':
